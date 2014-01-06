@@ -1,4 +1,4 @@
-function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu)
+function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation)
     % Solve the NT system up to tolerance tol
 
     Nvar   = size(X,1);
@@ -32,7 +32,10 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu)
 
         rp = a - AMat*svec(X);
 
-        Rd = Q + lambda*C - Z;
+        %Dualize constraints
+        DC = lambdaC( lambda, C, Participation );
+        
+        Rd = Q + DC - Z;
         for k = 1:Nconst
             Rd = Rd - mu(k)*A(:,:,k);
         end
@@ -80,9 +83,6 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu)
         Z  = Z  + alpha*dZ;
 
         mu = mu + alpha*dmu;
-    %     eig(X)
-    %     eig(Z)
-    %    tolIP
 
         Record.tolIP = [Record.tolIP;tolIP];
         Record.alpha = [Record.alpha;alpha];
@@ -91,16 +91,18 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu)
     end
     
     %Compute Gradient of X w.r.t lambda
-    
-    rhs_sens = [zeros(size(rp));
-                svec(C);
-                zeros(size(rc))];
+    for k = 1:size(C,3)
+        rhs_sens(:,k) = [zeros(size(rp));
+                         svec(C(:,:,k));
+                         zeros(size(rc))];
+    end
             
     Sol_sens = NTMat\rhs_sens;
-    X_sens = smat(Sol_sens(Nconst+1:Nconst+n));
-    
+    for k = 1:size(Sol_sens,2)
+        X_sens(:,:,k) = smat(Sol_sens(Nconst+1:Nconst+n,k));
+    end
     %X*Z
-
+% 
 %     figure(1);clf
 %     subplot(1,2,1)
 %     semilogy(Record.tolIP,'linestyle','none','marker','.')

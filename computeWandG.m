@@ -1,7 +1,22 @@
 function [ W, G, IG ] = computeWandG( X, Z )
 %Compute the matrices W and G of the NT method
     
-    L = chol(X,'lower'); R = chol(Z,'lower');
+    try
+        L = chol(X,'lower'); 
+    catch
+        display('Eig of X')
+        eig(X)
+        keyboard
+    end
+    
+    try
+        R = chol(Z,'lower');
+    catch
+        display('Eig of Z')
+        eig(Z)
+        keyboard
+    end
+    
     [U,D,V] = svd(R.'*L);
     G = L*V*diag(1./sqrt(diag(D)));
     W = 0;%G*G.';
