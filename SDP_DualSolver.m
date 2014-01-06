@@ -7,7 +7,7 @@ clc
 % Test on 2 agents
 
 %First or Second order Dual update
-Order = 'First';
+Order = 'Second';
 Lipschitz = 10;
 
 Nvar   = 8;
