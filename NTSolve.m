@@ -71,7 +71,7 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
         cond = min([eig(X + alpha*dX);
                     eig(Z + alpha*dZ)]);
 
-        while (cond < 0.01*tolcond) 
+        while (cond < 0.1*tolcond) 
             alpha = 0.9*alpha;
             cond = min([eig(X + alpha*dX);
                         eig(Z + alpha*dZ)]);
@@ -91,15 +91,16 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
     end
     
     %Compute Gradient of X w.r.t lambda
-    for k = 1:size(C,3)
+    for k = 1:length(Participation)
         rhs_sens(:,k) = [zeros(size(rp));
-                         svec(C(:,:,k));
+                         svec(C(:,:,Participation(k)));
                          zeros(size(rc))];
     end
             
     Sol_sens = NTMat\rhs_sens;
-    for k = 1:size(Sol_sens,2)
-        X_sens(:,:,k) = smat(Sol_sens(Nconst+1:Nconst+n,k));
+
+    for k = 1:length(Participation)
+        X_sens(:,:,Participation(k)) = smat(Sol_sens(Nconst+1:Nconst+n,k));
     end
     %X*Z
 % 

@@ -5,7 +5,7 @@ function [ W, G, IG ] = computeWandG( X, Z )
         L = chol(X,'lower'); 
     catch
         display('Eig of X')
-        eig(X)
+        min(eig(X))
         keyboard
     end
     
@@ -13,7 +13,7 @@ function [ W, G, IG ] = computeWandG( X, Z )
         R = chol(Z,'lower');
     catch
         display('Eig of Z')
-        eig(Z)
+        min(eig(Z))
         keyboard
     end
     

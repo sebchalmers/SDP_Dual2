@@ -140,20 +140,25 @@ for tau_index = 1:length(tau_table)
             
 
         end
-
+        
         %Compute dual Hessian
         DH = zeros(length(Cset),length(Cset));
         for m = 1:length(Cset)
             for l = 1:length(Cset)
                 for i = 1:length(Cset{l})
                     k = Cset{l}(i);
-                    DH(m,l) = DH(m,l) + trace(C{k}(:,:,l)*X_sens{agent}(:,:,m));
+                    display(['m = ',num2str(m),' / ', ...
+                                 'l = ',num2str(l),' / ', ...
+                                 'k = ',num2str(k),' / ', ...
+                                 'P_k = ',num2str(P{k})])
+                    if max(m == P{k})                      
+                        DH(m,l) = DH(m,l) + trace(C{k}(:,:,l)*X_sens{k}(:,:,m))                        
+                    end
+                    pause
                 end
             end
         end
-
-
-        
+        return
         %Store
         lambda_store{tau_index}(iter,:) = lambda;
         D_store{tau_index}(iter)        = D;
