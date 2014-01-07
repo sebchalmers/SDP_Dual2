@@ -15,8 +15,8 @@ Lipschitz = 10; % For 'GA' and 'FGM'
 
 display_subproblems = 0;
 
-Nvar   = 3;
-Nconst = 1;
+Nvar   = 8;
+Nconst = 2;
 
 % % Four agents
 % Nagent = 4;
@@ -70,13 +70,16 @@ for agent = 1:Nagent
     for const = 1:length(P{agent})
         C{agent}(:,:,P{agent}(const)) = random('norm',0,1,Nvar,Nvar);
         C{agent}(:,:,P{agent}(const)) = C{agent}(:,:,P{agent}(const)) + C{agent}(:,:,P{agent}(const)).';
+%         while (min(real(eig(C{agent}(:,:,P{agent}(const))))) < 0)
+%             C{agent}(:,:,P{agent}(const)) = C{agent}(:,:,P{agent}(const)) + (1-min(real(eig(C{agent}(:,:,P{agent}(const))))))*eye(Nvar);
+%         end
     end
 
 
     for k = 1:Nconst
         A{agent}(:,:,k) = random('norm',0,1,Nvar,Nvar);
         A{agent}(:,:,k) = A{agent}(:,:,k) + A{agent}(:,:,k).';        
-        a{agent}(k)     = random('norm',0,1);
+        a{agent}(k,1)   = random('norm',0,1);
     end
 
 end
@@ -170,7 +173,7 @@ for tau_index = 1:length(tau_table)
             end
         end
         
-        %Lipschitz = max(abs(eig(DH)));
+        Lipschitz = max(abs(eig(DH)));
 
         %Store
         lambda_store{tau_index}(iter,:) = lambda;
