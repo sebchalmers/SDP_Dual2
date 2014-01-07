@@ -1,6 +1,8 @@
-function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation)
+function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation, display)
     % Solve the NT system up to tolerance tol
 
+
+    
     Nvar   = size(X,1);
     Nconst = size(A,3);
     
@@ -40,8 +42,7 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
             Rd = Rd - mu(k)*A(:,:,k);
         end
 
-        sig = 1;%trace(X*Z)/Nvar;
-        Rc = tau*sig*eye(Nvar) - HP(P,IP,X*Z);
+        Rc = tau*eye(Nvar) - HP(P,IP,X*Z);
 
         rc = svec(Rc);
         rd = svec(Rd);
@@ -63,6 +64,7 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
         % Compute update
 
         % Step-size (maintain positivity)
+         
         alpha = 1;
 
         tolcond = min([eig(X);
@@ -71,17 +73,25 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
         cond = min([eig(X + alpha*dX);
                     eig(Z + alpha*dZ)]);
 
-        while (cond < 0.5*tolcond) 
+        while (cond < 0.9*tolcond) 
             alpha = 0.9*alpha;
             cond = min([eig(X + alpha*dX);
                         eig(Z + alpha*dZ)]);
-
+            if (alpha < 1e-6)
+                display(['Tiny step-size: alpha < 1e-6']);
+            end
         end
 
-
+        %display(['NT Line-search, tolcond: ',num2str(tolcond),' | cond: ',num2str(cond),' | alpha = ',num2str(alpha)])
+        
         X  = X  + alpha*dX;
         Z  = Z  + alpha*dZ;
 
+%         if (min(eig(X)) < 1e-9) || (min(eig(Z)) < 1e-9)
+%             display(['Eig(X) = ',num2str(eig(X).')])
+%             display(['Eig(Z) = ',num2str(eig(Z).')])
+%             keyboard
+%         end
         mu = mu + alpha*dmu;
 
         Record.tolIP = [Record.tolIP;tolIP];
@@ -103,16 +113,16 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
         X_sens(:,:,Participation(k)) = smat(Sol_sens(Nconst+1:Nconst+n,k));
     end
     %X*Z
-% 
-%     figure(1);clf
-%     subplot(1,2,1)
-%     semilogy(Record.tolIP,'linestyle','none','marker','.')
-%     line([1 length(Record.tolIP)],[tol tol],'color','r')
-%     title('Tol');grid on;axis tight
-%     subplot(1,2,2)
-%     plot(Record.alpha,'linestyle','none','marker','.')
-%     title('Step-size');grid on
-
+    if (display == 1)
+        figure(1);clf
+        subplot(1,2,1)
+        semilogy(Record.tolIP,'linestyle','none','marker','.')
+        line([1 length(Record.tolIP)],[tol tol],'color','r')
+        title('Tol');grid on;axis tight
+        subplot(1,2,2)
+        plot(Record.alpha,'linestyle','none','marker','.')
+        title('Step-size');grid on
+    end
 
 end
 

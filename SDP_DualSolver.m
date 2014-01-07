@@ -7,12 +7,18 @@ clc
 % Test on 2 agents
 
 %First or Second order Dual update
-Order = 'First';
+%Method    = 'GA';     % Gradient ascent
+Method    = 'FGM';    % Fast gradient 
+%Method    = 'Second'; % 2nd-order dual update
+
+Lipschitz = 10; % For 'GA' and 'FGM'
+
+display_subproblems = 0;
 
 Nvar   = 3;
 Nconst = 1;
 
-% Four agents
+% % Four agents
 % Nagent = 4;
 % 
 % %Define coupling constraints (C-set)
@@ -20,7 +26,7 @@ Nconst = 1;
 %         [2 3],
 %         [3 4]};
 
-% % % Three agents
+% % Three agents
 Nagent = 3;
 
 %Define coupling constraints (C-set)
@@ -30,10 +36,10 @@ Cset = {[1 2],
 % res = [trace(C{1}(:,:,1)*X{1} + C{2}(:,:,1)*X{2});
 %        trace(C{2}(:,:,2)*X{1} + C{3}(:,:,2)*X{2})]
 
-%% Two agents
+% %% Two agents
 % Nagent = 2;
 % 
-% Define coupling constraints (C-set)
+% %Define coupling constraints (C-set)
 % Cset = {[1 2]};
 
 %% res = trace(C{1}*X{1} + C{2}*X{2})
@@ -75,9 +81,11 @@ for agent = 1:Nagent
 
 end
 
-lambda = zeros(length(Cset),1);
+lambda    = zeros(length(Cset),1);
+xFGM      = lambda; %for Fast Gradient Method
+xFGM_prev = xFGM;
 
-
+% Initiate subproblems
 % for agent = 1:Nagent
 %     cvx_begin
 % 
@@ -108,10 +116,10 @@ lambda = zeros(length(Cset),1);
 % end
 % X = X0;Z = Z0;mu = mu0;
 
-tol = 1e-6;
-tau_table = logspace(0,-6,20);
+tolIP = 1e-6;tauEnd = -6; %(order)
+tau_table = logspace(0,tauEnd,20);
 
-
+%Naive guess
 for agent = 1:Nagent
     X{agent} = eye(Nvar); Z{agent} = eye(Nvar); 
     mu{agent} = zeros(Nconst,1);
@@ -119,20 +127,21 @@ end
     
 
 for tau_index = 1:length(tau_table)
-    tau = tau_table(tau_index);
-
+    tau     = tau_table(tau_index);
+    tolDual = tau;
+    
     iter = 1;
 
 
-    res = 1;DualIncrease = 1;
-    while (norm(res) > 1e-3) && (DualIncrease == 1)
+    res = 1e6;DualIncrease = 1;
+    while (norm(res) > tolDual) && (DualIncrease == 1)
         D = 0;res = 0;
         for agent = 1:Nagent
-            [ X{agent}, Z{agent}, mu{agent}, X_sens{agent} ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tol, X{agent}, Z{agent}, mu{agent}, P{agent});
+            [ X{agent}, Z{agent}, mu{agent}, X_sens{agent} ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolIP, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
 
             %Dual value
             DC = lambdaC( lambda, C{agent}, P{agent} );
-            D = D + trace((Q{agent}  + WeightNuclear*eye(Nvar)  + DC)*X{agent});
+            D = D + trace((Q{agent}  + WeightNuclear*eye(Nvar)  + DC)*X{agent}) - tau*log(det(X{agent}));
 
             %Residual (to be checked)
             for const = 1:length(Cset) %walk through the C-sets
@@ -144,13 +153,6 @@ for tau_index = 1:length(tau_table)
                 end
             end
             
-%           %Check residual 2 agents
-%             if length(lambda) > 1;
-%                 res
-%                 res2 = [trace(C{1}(:,:,1)*X{1}) + trace(C{2}(:,:,1)*X{2});
-%                         trace(C{2}(:,:,2)*X{2}) + trace(C{3}(:,:,2)*X{3})]
-%             end
-            %pause
             
 
         end
@@ -161,21 +163,14 @@ for tau_index = 1:length(tau_table)
             for l = 1:length(Cset)
                 for i = 1:length(Cset{l})
                     k = Cset{l}(i);
-%                     display(['m = ',num2str(m),' / ', ...
-%                                  'l = ',num2str(l),' / ', ...
-%                                  'k = ',num2str(k),' / ', ...
-%                                  'P_k = ',num2str(P{k})])
                     if max(m == P{k})                      
                         DH(m,l) = DH(m,l) + trace(C{k}(:,:,l)*X_sens{k}(:,:,m))   ;                     
                     end
-%                     pause
                 end
             end
         end
-        Lipschitz = max(abs(eig(DH)));
-        %display(['Hessian conditioning : ',num2str(cond(DH))])
-        EDH = eig(DH);
-        display(['Hessian min/max eig : ',num2str(min(EDH)),' / ',num2str(max(EDH))])
+        
+        %Lipschitz = max(abs(eig(DH)));
 
         %Store
         lambda_store{tau_index}(iter,:) = lambda;
@@ -187,18 +182,15 @@ for tau_index = 1:length(tau_table)
         %  Dual Update %
         %%%%%%%%%%%%%%%%
         
-        switch Order
-            case 'First'
-                lambda = lambda + res/Lipschitz;
+        switch Method
+            case 'GA'
+                lambda      = lambda + res/Lipschitz;
+            case 'FGM'
+                xFGM      = lambda + res/Lipschitz;
+                lambda    = xFGM + (iter-1)/(iter+2)*(xFGM - xFGM_prev);
+                xFGM_prev = xFGM;
             case 'Second'     
                 lambda = lambda - DH\res;
-        end
-
-        if iter > 1
-            %Check Dual Increase
-            if (D_store{tau_index}(iter) < D_store{tau_index}(iter-1))
-                DualIncrease = 0;
-            end
         end
         
         %Next iterate
@@ -212,6 +204,7 @@ for tau_index = 1:length(tau_table)
             title('Dual Value')
             subplot(1,2,2)
             semilogy(res_store{tau_index});hold on
+            ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
             title('Residual')
             grid on
         end
@@ -225,6 +218,7 @@ for tau_index = 1:length(tau_table)
             grid on
             subplot(1,2,2)
             semilogy(res_store{tau_index});hold on
+            ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
             title('Residual')
             grid on
         end
@@ -234,10 +228,11 @@ for tau_index = 1:length(tau_table)
             semilogy(res_store{tau_index});hold on
             title('Residual')
             grid on
+            ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
         end
         
     end
-    iter_store(tau_index) = iter;
+    iter_store(tau_index) = iter-1;
 
     Central_path(tau_index,:) = [lambda_store{tau_index}(end,:) D_store{tau_index}(end)];
 
@@ -245,7 +240,7 @@ for tau_index = 1:length(tau_table)
     if (length(lambda) == 1)
         figure(3);
         plot(lambda_store{tau_index},D_store{tau_index},'linestyle',':','marker','.');hold on
-        plot(lambda_store{tau_index}(end),D_store{tau_index}(end),'linestyle','none','marker','.','color','r');
+        plot(lambda_store{tau_index}(end),D_store{tau_index}(end),'linestyle',':','marker','.','color','r');
         plot(Central_path(:,1),Central_path(:,2))
         title('Central path & with Dual values over local updates')
         xlabel('Dual variable');ylabel('Dual Value')
@@ -254,7 +249,7 @@ for tau_index = 1:length(tau_table)
     
     if (length(lambda) == 2)
         figure(3);
-        plot3(lambda_store{tau_index}(:,1),lambda_store{tau_index}(:,2),D_store{tau_index},'linestyle','none','marker','.');hold on
+        plot3(lambda_store{tau_index}(:,1),lambda_store{tau_index}(:,2),D_store{tau_index},'linestyle',':','marker','.');hold on
         plot3(Central_path(:,1),Central_path(:,2),Central_path(:,3))
         title('Central path & with Dual values over local updates')
         xlabel('Dual variable');ylabel('Dual Value')
@@ -264,14 +259,8 @@ for tau_index = 1:length(tau_table)
 
     
     figure(4)
-    subplot(2,1,1)
-    plot3([1:1:length(DH_store{tau_index})],-log10(tau_table(tau_index))*ones(length(DH_store{tau_index}),1),DH_store{tau_index});hold on;grid on
-    title('Local Lipschitz constant')
-    xlabel('Dual iteration');ylabel('-log10(Barrier)');zlabel('||Dual Hessian||')
-
-    subplot(2,1,2)
-    bar(-log10(tau_table(1:tau_index)),iter_store)
-    xlabel('-log10(Barrier)');ylabel('#Dual iter')
+    barh(log10(tau_table(1:tau_index)),iter_store)
+    ylabel('log10(Barrier)');xlabel('#Dual iter')
     grid on    
     title('# of iteration at each barrier value')
     %pause
