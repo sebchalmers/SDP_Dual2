@@ -71,7 +71,7 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
         cond = min([eig(X + alpha*dX);
                     eig(Z + alpha*dZ)]);
 
-        while (cond < 0.1*tolcond) 
+        while (cond < 0.5*tolcond) 
             alpha = 0.9*alpha;
             cond = min([eig(X + alpha*dX);
                         eig(Z + alpha*dZ)]);

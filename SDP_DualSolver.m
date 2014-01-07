@@ -8,12 +8,19 @@ clc
 
 %First or Second order Dual update
 Order = 'First';
-Lipschitz = 10;
 
 Nvar   = 3;
 Nconst = 1;
 
-% % Three agents
+% Four agents
+% Nagent = 4;
+% 
+% %Define coupling constraints (C-set)
+% Cset = {[1 2],
+%         [2 3],
+%         [3 4]};
+
+% % % Three agents
 Nagent = 3;
 
 %Define coupling constraints (C-set)
@@ -23,13 +30,15 @@ Cset = {[1 2],
 % res = [trace(C{1}(:,:,1)*X{1} + C{2}(:,:,1)*X{2});
 %        trace(C{2}(:,:,2)*X{1} + C{3}(:,:,2)*X{2})]
 
-% % Two agents
+%% Two agents
 % Nagent = 2;
 % 
-% %Define coupling constraints (C-set)
+% Define coupling constraints (C-set)
 % Cset = {[1 2]};
 
 %% res = trace(C{1}*X{1} + C{2}*X{2})
+
+
 
 %Participating set
 for k = 1:Nagent
@@ -67,43 +76,47 @@ for agent = 1:Nagent
 end
 
 lambda = zeros(length(Cset),1);
+
+
 % for agent = 1:Nagent
-%     DC(:,:,agent) = lambdaC( lambda, C{agent}, P{agent} );
+%     cvx_begin
+% 
+%         cvx_precision( 1e-1 );
+% 
+%         variable Xk(Nvar,Nvar);% symmetric;
+% 
+%         dual variables y{1+Nconst}  
+% 
+%         %Dualize constraints
+%         DC_agent = lambdaC( lambda, C{agent}, P{agent} );
+%         
+%         minimize( trace((Q{agent} + WeightNuclear*eye(Nvar) + DC_agent)*Xk) );
+%         subject to
+%             Xk == semidefinite(Nvar) : y{1};
+%             for k = 1:Nconst
+%                 trace(A{agent}(:,:,k)*Xk) == a{agent}(k) : y{k+1} ;
+%             end
+% 
+%         cvx_problem
+%     cvx_end
+% 
+%     Z0{agent} = y{1};
+%     for k = 1:Nconst
+%         mu0{agent}(k) = y{k+1};
+%     end
+%     X0{agent} = Xk;
 % end
-
-for agent = 1:Nagent
-    cvx_begin
-
-        cvx_precision( 1e-1 );
-
-        variable Xk(Nvar,Nvar);% symmetric;
-
-        dual variables y{1+Nconst}  
-
-        %Dualize constraints
-        DC_agent = lambdaC( lambda, C{agent}, P{agent} );
-        
-        minimize( trace((Q{agent} + WeightNuclear*eye(Nvar) + DC_agent)*Xk) );
-        subject to
-            Xk == semidefinite(Nvar) : y{1};
-            for k = 1:Nconst
-                trace(A{agent}(:,:,k)*Xk) == a{agent}(k) : y{k+1} ;
-            end
-
-        cvx_problem
-    cvx_end
-
-    Z0{agent} = y{1};
-    for k = 1:Nconst
-        mu0{agent}(k) = y{k+1};
-    end
-    X0{agent} = Xk;
-end
+% X = X0;Z = Z0;mu = mu0;
 
 tol = 1e-6;
-tau_table = logspace(0,-6,10);
+tau_table = logspace(0,-6,20);
 
-X = X0; Z = Z0; mu = mu0;
+
+for agent = 1:Nagent
+    X{agent} = eye(Nvar); Z{agent} = eye(Nvar); 
+    mu{agent} = zeros(Nconst,1);
+end
+    
 
 for tau_index = 1:length(tau_table)
     tau = tau_table(tau_index);
@@ -122,7 +135,6 @@ for tau_index = 1:length(tau_table)
             D = D + trace((Q{agent}  + WeightNuclear*eye(Nvar)  + DC)*X{agent});
 
             %Residual (to be checked)
-            clc
             for const = 1:length(Cset) %walk through the C-sets
                 res(const,1) = 0; %res for constraint 'const'
                 for index = 1:length(Cset{const}) %sum over all the agents participating in constraint 'const'
@@ -133,9 +145,11 @@ for tau_index = 1:length(tau_table)
             end
             
 %           %Check residual 2 agents
-            res
-            res2 = [trace(C{1}(:,:,1)*X{1}) + trace(C{2}(:,:,1)*X{2});
-                    trace(C{2}(:,:,2)*X{2}) + trace(C{3}(:,:,2)*X{3})]
+%             if length(lambda) > 1;
+%                 res
+%                 res2 = [trace(C{1}(:,:,1)*X{1}) + trace(C{2}(:,:,1)*X{2});
+%                         trace(C{2}(:,:,2)*X{2}) + trace(C{3}(:,:,2)*X{3})]
+%             end
             %pause
             
 
@@ -147,23 +161,27 @@ for tau_index = 1:length(tau_table)
             for l = 1:length(Cset)
                 for i = 1:length(Cset{l})
                     k = Cset{l}(i);
-                    display(['m = ',num2str(m),' / ', ...
-                                 'l = ',num2str(l),' / ', ...
-                                 'k = ',num2str(k),' / ', ...
-                                 'P_k = ',num2str(P{k})])
+%                     display(['m = ',num2str(m),' / ', ...
+%                                  'l = ',num2str(l),' / ', ...
+%                                  'k = ',num2str(k),' / ', ...
+%                                  'P_k = ',num2str(P{k})])
                     if max(m == P{k})                      
-                        DH(m,l) = DH(m,l) + trace(C{k}(:,:,l)*X_sens{k}(:,:,m))                        
+                        DH(m,l) = DH(m,l) + trace(C{k}(:,:,l)*X_sens{k}(:,:,m))   ;                     
                     end
-                    pause
+%                     pause
                 end
             end
         end
-        return
+        Lipschitz = max(abs(eig(DH)));
+        %display(['Hessian conditioning : ',num2str(cond(DH))])
+        EDH = eig(DH);
+        display(['Hessian min/max eig : ',num2str(min(EDH)),' / ',num2str(max(EDH))])
+
         %Store
         lambda_store{tau_index}(iter,:) = lambda;
         D_store{tau_index}(iter)        = D;
         res_store{tau_index}(iter)      = norm(res);
-        DH_store{tau_index}(iter)       = norm(DH);
+        DH_store{tau_index}(iter)       = Lipschitz;
         
         %%%%%%%%%%%%%%%%
         %  Dual Update %
@@ -211,6 +229,13 @@ for tau_index = 1:length(tau_table)
             grid on
         end
         
+        if (length(lambda) > 2)
+            figure(2);clf
+            semilogy(res_store{tau_index});hold on
+            title('Residual')
+            grid on
+        end
+        
     end
     iter_store(tau_index) = iter;
 
@@ -236,10 +261,12 @@ for tau_index = 1:length(tau_table)
         grid on
     end
     
+
+    
     figure(4)
     subplot(2,1,1)
     plot3([1:1:length(DH_store{tau_index})],-log10(tau_table(tau_index))*ones(length(DH_store{tau_index}),1),DH_store{tau_index});hold on;grid on
-    title('Dual curvature at each barrier value')
+    title('Local Lipschitz constant')
     xlabel('Dual iteration');ylabel('-log10(Barrier)');zlabel('||Dual Hessian||')
 
     subplot(2,1,2)
@@ -253,4 +280,8 @@ end
 if (length(lambda) == 2)
     Check_residual = [trace(C{1}(:,:,1)*X{1} + C{2}(:,:,1)*X{2});
                       trace(C{2}(:,:,2)*X{2} + C{3}(:,:,2)*X{3})]
+end
+
+if (length(lambda) == 1)
+    Check_residual = [trace(C{1}(:,:,1)*X{1} + C{2}(:,:,1)*X{2})]
 end
