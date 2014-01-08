@@ -2,14 +2,9 @@ clear all
 close all
 clc
 
-List_of_Methods = {'FGM','Second'};
-%List_of_Methods = {'Second'};
-Marker = containers.Map;
-MarkerList = {'o','x'};
+List_of_Methods = {'Second_Predictor','Second_NoPredictor','FGM'};
+Marker = {'o','.','x'};
 
-for k = 1:length(List_of_Methods)
-    Marker(List_of_Methods{k}) = MarkerList{k};
-end
 
 % run /Users/sebastien/Desktop/cvx/cvx_setup
 
@@ -87,6 +82,7 @@ load Data1
 % 
 % end
 
+Ratio_tolDual_tolSub = 10;
 for method_number = 1:length(List_of_Methods)
     Method = List_of_Methods{method_number}
 
@@ -95,40 +91,59 @@ for method_number = 1:length(List_of_Methods)
     xFGM_prev = xFGM;
 
 
-    tauEnd = -6; %(order)
-    tau_table = logspace(0,tauEnd,40);
-
+    tauEnd    = -6; %(order)
+    tau_table = logspace(0,tauEnd,30);
+    tolIP     = tau_table(end);
+    
     %Naive guess
     for agent = 1:Nagent
         X{agent} = eye(Nvar); Z{agent} = eye(Nvar); 
         mu{agent} = zeros(Nconst,1);
     end
 
-    %initiate storage
-    all_res_store = [];
+    %initiate storage (not kept)
     res_store     = [];
     DH_store      = [];
     D_store       = [];
     lambda_store  = [];        
             
+    %Storage for method compare
+    all_res_store{method_number}     = [];
+    tau_vs_iter_total{method_number} = [];
+    
+    
     iter_total = 1; %total number of dual iteration of the algorithm
-    tau_vs_iter_total = [];
+    dlambda_dtau = 0;
     for tau_index = 1:length(tau_table)
         tau     = tau_table(tau_index);
-        tolDual = tau;
-        tolIP   = 1e-6;
 
-        tau_vs_iter_total = [tau_vs_iter_total;
-                             tau     iter_total-1];
+        if (tau_index > 1) 
+            switch Method
+                case 'Second_Predictor'   
+                    %Update dual after barrier update using predictor
+                    lambda = lambda + dlambda_dtau*(tau_table(tau_index) - tau_table(tau_index-1));
+            end
+        end
+        
+        if (tau > tau_table(end))
+            tolDual = tau*10;
+        else
+            tolDual = tau;
+        end
+
+
+        
+        tau_vs_iter_total{method_number} = [tau_vs_iter_total{method_number};
+                                            tau     iter_total-1];
         
         iter = 1;   %number of dual iterations for the current value of the barrier parameter
 
 
         res = 1e6;
-        while (norm(res) > tolDual) 
+        while (norm(res) > tolDual)  
             D = 0;res = 0;
             for agent = 1:Nagent
-                [ X{agent}, Z{agent}, mu{agent}, X_sens{agent} ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolIP, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
+                [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent} ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolIP, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
 
                 %Dual value
                 DC = lambdaC( lambda, C{agent}, P{agent} );
@@ -143,9 +158,6 @@ for method_number = 1:length(List_of_Methods)
                         %display(['Agent = ',num2str(participating_agent),' / Const = ',num2str(const)]);
                     end
                 end
-
-
-
             end
 
             %Compute dual Hessian
@@ -155,20 +167,30 @@ for method_number = 1:length(List_of_Methods)
                     for i = 1:length(Cset{l})
                         k = Cset{l}(i);
                         if max(m == P{k})                      
-                            DH(m,l) = DH(m,l) + trace(C{k}(:,:,l)*X_sens{k}(:,:,m))   ;                     
+                            DH(m,l) = DH(m,l) + trace(C{k}(:,:,l)*X_sens{k}(:,:,m));                            
                         end
                     end
                 end
             end
 
+            %Compute D_lambda_tau
+            Dtau = zeros(length(Cset),1);
+            for l = 1:length(Cset)
+                for i = 1:length(Cset{l})
+                    k = Cset{l}(i);                     
+                    Dtau(l) = Dtau(l) + trace(C{k}(:,:,l)*X_sens_tau{k});                            
+                end
+            end
+            dlambda_dtau = -DH\Dtau;
+
             Lipschitz = max(abs(eig(DH)));
 
             %Store
-            lambda_store{tau_index}(iter,:) = lambda;
-            D_store{tau_index}(iter)        = D;
-            res_store{tau_index}(iter)      = norm(res);
-            all_res_store(iter_total)       = norm(res);
-            DH_store{tau_index}(iter)       = Lipschitz;
+            lambda_store{tau_index}(iter,:)          = lambda;
+            D_store{tau_index}(iter)                 = D;
+            res_store{tau_index}(iter)               = norm(res);
+            all_res_store{method_number}(iter_total) = norm(res);
+            DH_store{tau_index}(iter)                = Lipschitz;
 
             %%%%%%%%%%%%%%%%
             %  Dual Update %
@@ -198,46 +220,82 @@ for method_number = 1:length(List_of_Methods)
                         xFGM_prev = xFGM;
                     end
                     
-                case 'Second'   %Second order update   
+                case 'Second_Predictor'   %Second order update   
+                    lambda    = lambda - DH\res;
+                case 'Second_NoPredictor'   %Second order update   
                     lambda    = lambda - DH\res;
             end
 
             %Next iterate
             iter       = iter + 1;
             iter_total = iter_total + 1;
-            
-%             figure(1);clf
-%             semilogy(res_store{tau_index});hold on
-%             title('Residual')
-%             grid on
-%             ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
+
+            figure(1);clf
+            semilogy(res_store{tau_index});hold on
+            title('Residual')
+            grid on
+            ylim([Ratio_tolDual_tolSub*tau max(10*Ratio_tolDual_tolSub*tau,res_store{tau_index}(1))])
 
         end
         iter_store(tau_index,method_number) = iter-1;
         
-        tau_vs_iter_total = [tau_vs_iter_total;
-                             tau     iter_total-1];
+        tau_vs_iter_total{method_number} = [tau_vs_iter_total{method_number};
+                                            tau     iter_total-1];
         figure(1);clf
         semilogy(res_store{tau_index});hold on
         title('Residual')
         grid on
-        ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
+        ylim([Ratio_tolDual_tolSub*tau max(10*Ratio_tolDual_tolSub*tau,res_store{tau_index}(1))])
         %pause
             
     end
 
-
-    figure(2);
-    semilogy(all_res_store,'linestyle','none','marker',Marker(Method),'color','k');hold on
-    plot(tau_vs_iter_total(1:end,2),tau_vs_iter_total(1:end,1),'linestyle','-','color','k','linewidth',2);hold on
-    title('||Dual residual||')
-    grid on
-    
     figure(3)
     barh(log10(tau_table(1:tau_index)),iter_store)
     ylabel('log10(Barrier)');
     grid on    
     title('# of iteration at each barrier value')
     sum(iter_store(:,1))
-    return
+
+
 end
+
+%Compare all methods
+fig = figure(2);clf
+for method_number = 1:length(List_of_Methods)    
+    semilogy(all_res_store{method_number},'linestyle','none','marker',Marker{method_number},'color','k');hold on
+end
+
+
+for method_number = 1:length(List_of_Methods)
+    plot(tau_vs_iter_total{method_number}(1:end,2),tau_vs_iter_total{method_number}(1:end,1),'linestyle','-','color','k','linewidth',1);hold on
+end
+legend('N-D','N-D No predictor','FGM','Barrier')
+ylabel('$$\|\nabla D\|$$','interpreter','latex')
+xlabel('Iteration')
+grid on
+
+% PapPos = get(gcf,'PaperPosition');PapPos(3) = 2.2*PapPos(3);
+% set(gcf,'PaperPosition',PapPos)
+FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers'];
+exportfig(fig, FileName,'color','cmyk')
+
+%Compare 2nd-order methods
+fig = figure(3);clf
+for method_number = 1:2  
+    semilogy(all_res_store{method_number},'linestyle','none','marker',Marker{method_number},'color','k');hold on
+end
+
+
+for method_number = 1:2
+    plot(tau_vs_iter_total{method_number}(1:end,2),tau_vs_iter_total{method_number}(1:end,1),'linestyle','-','color','k','linewidth',1);hold on
+end
+legend('N-D','N-D No predictor','Barrier')
+ylabel('$$\|\nabla D\|$$','interpreter','latex')
+xlabel('Iteration')
+grid on
+
+% PapPos = get(gcf,'PaperPosition');PapPos(3) = 2.2*PapPos(3);
+% set(gcf,'PaperPosition',PapPos)
+FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/Compare2ndOrderSolvers'];
+exportfig(fig, FileName,'color','cmyk')

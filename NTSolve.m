@@ -1,4 +1,4 @@
-function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation, display)
+function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation, display)
     % Solve the NT system up to tolerance tol
 
 
@@ -97,6 +97,17 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
         Record.res_norm = [Record.res_norm;norm_residual];
         Record.alpha    = [Record.alpha;alpha];
         Record.tau      = [Record.tau;tau];
+        if (display == 2)
+            figure(1);clf
+            subplot(1,2,1)
+            semilogy(Record.res_norm,'linestyle','none','marker','.')
+            line([1 length(Record.res_norm)],[tol tol],'color','r')
+            title('Tol');grid on;axis tight
+            subplot(1,2,2)
+            plot(Record.alpha,'linestyle','none','marker','.')
+            title('Step-size');grid on
+        end
+    
 
     end
     
@@ -106,13 +117,19 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
                          svec(C(:,:,Participation(k)));
                          zeros(size(rc))];
     end
-            
+
+    rhs_sens(:,k+1) = [zeros(size(rp));
+                       zeros(size(rd));
+                       svec(eye(Nvar))];
+    
     Sol_sens = NTMat\rhs_sens;
 
     for k = 1:length(Participation)
         X_sens(:,:,Participation(k)) = smat(Sol_sens(Nconst+1:Nconst+n,k));
     end
-    %X*Z
+
+    X_sens_tau = smat(Sol_sens(Nconst+1:Nconst+n,k+1));
+    
     if (display == 1)
         figure(1);clf
         subplot(1,2,1)
@@ -125,4 +142,5 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
     end
 
 end
+
 
