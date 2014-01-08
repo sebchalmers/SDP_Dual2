@@ -6,14 +6,14 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
     Nvar   = size(X,1);
     Nconst = size(A,3);
     
-    tolIP = 1;
+    norm_residual = 1e6;
 
-    Record.tau   = [];
-    Record.tolIP = [];
-    Record.alpha = [];
+    Record.tau      = [];
+    Record.res_norm = [];
+    Record.alpha    = [];
 
 
-    while (tolIP > tol)
+    while (norm_residual > tol)
 
         %Form NT system
         [ W, G, IG ] = computeWandG( X, Z );
@@ -52,7 +52,7 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
                rc];
 
 
-        tolIP = norm(rhs);
+        norm_residual = norm(rhs);
 
         % Compute NT step
         NTstep = NTMat\rhs;
@@ -78,7 +78,7 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
             cond = min([eig(X + alpha*dX);
                         eig(Z + alpha*dZ)]);
             if (alpha < 1e-6)
-                display(['Tiny step-size: alpha < 1e-6']);
+                alpha
             end
         end
 
@@ -94,9 +94,9 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
 %         end
         mu = mu + alpha*dmu;
 
-        Record.tolIP = [Record.tolIP;tolIP];
-        Record.alpha = [Record.alpha;alpha];
-        Record.tau   = [Record.tau;tau];
+        Record.res_norm = [Record.res_norm;norm_residual];
+        Record.alpha    = [Record.alpha;alpha];
+        Record.tau      = [Record.tau;tau];
 
     end
     
@@ -116,8 +116,8 @@ function [ X, Z, mu, X_sens ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu,
     if (display == 1)
         figure(1);clf
         subplot(1,2,1)
-        semilogy(Record.tolIP,'linestyle','none','marker','.')
-        line([1 length(Record.tolIP)],[tol tol],'color','r')
+        semilogy(Record.res_norm,'linestyle','none','marker','.')
+        line([1 length(Record.res_norm)],[tol tol],'color','r')
         title('Tol');grid on;axis tight
         subplot(1,2,2)
         plot(Record.alpha,'linestyle','none','marker','.')

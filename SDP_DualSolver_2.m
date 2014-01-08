@@ -138,8 +138,8 @@ for tau_index = 1:length(tau_table)
     iter = 1;
 
 
-    res = 1e6;
-    while (norm(res) > tolDual) 
+    res = 1e6;ExitDualIteration = 0;
+    while (ExitDualIteration == 0) 
         D = 0;res = 0;
         for agent = 1:Nagent
             [ X{agent}, Z{agent}, mu{agent}, X_sens{agent} ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolIP, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
@@ -251,6 +251,10 @@ for tau_index = 1:length(tau_table)
             ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
         end
         
+        ExitDualIteration = 0;
+        if (norm(res) <= tolDual) || (tau > tau_table(end))
+            ExitDualIteration = 1;
+        end
     end
     iter_store(tau_index) = iter-1;
 
