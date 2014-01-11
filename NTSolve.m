@@ -1,23 +1,20 @@
-function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation, display)
-    % Solve the NT system up to tolerance tol
+function [ X, Z, mu, X_sens, X_sens_tau, iter ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation, display)
+% Solve the NT system up to tolerance tol
 
-
-    
+    %Some dimensions
     Nvar   = size(X,1);
     Nconst = size(A,3);
     n = Nvar*(Nvar+1)/2;
     
-    norm_residual = 1e6;
+    %Form NT system & compute residual
+    [ rhs, NTMat, norm_residual ] = FormNTSystem(  X, Z, mu, lambda, Q, A, a, C, Participation, tau  );
 
-    Record.tau      = [];
-    Record.res_norm = [];
+    %Storage
+    Record.res_norm = [norm_residual];
     Record.alpha    = [];
-
-
-    while (norm_residual > tol)
-
-        %Form NT system
-        [ rhs, NTMat, norm_residual ] = FormNTSystem(  X, Z, mu, lambda, Q, A, a, C, Participation, tau  );
+        
+    iter = 0;
+    while (norm_residual > tol) || (iter == 0)
 
         % Compute NT direction
         NTstep = NTMat\rhs;
@@ -48,17 +45,21 @@ function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol
         
         X  = X  + alpha*dX;
         Z  = Z  + alpha*dZ;
-
-%         if (min(eig(X)) < 1e-9) || (min(eig(Z)) < 1e-9)
-%             display(['Eig(X) = ',num2str(eig(X).')])
-%             display(['Eig(Z) = ',num2str(eig(Z).')])
-%             keyboard
-%         end
         mu = mu + alpha*dmu;
 
+        
+        
+        %Update residual & NT system
+        NTMatOLD = NTMat; %Keep previous NTMat for sensitivity computation (in case factorization is not updated)
+        [ rhs, NTMat, norm_residual ] = FormNTSystem(  X, Z, mu, lambda, Q, A, a, C, Participation, tau  );
+
+        %Storage
         Record.res_norm = [Record.res_norm;norm_residual];
         Record.alpha    = [Record.alpha;alpha];
-        Record.tau      = [Record.tau;tau];
+        
+        iter = iter + 1;
+        
+        %Display
         if (display == 2)
             figure(1);clf
             subplot(1,2,1)
@@ -73,6 +74,7 @@ function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol
 
     end
 
+    
     %Compute Gradient of X w.r.t lambda
     for k = 1:length(Participation)
         rhs_sens(:,k) = [zeros(size(a));
@@ -83,8 +85,8 @@ function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol
     rhs_sens(:,k+1) = [zeros(size(a));
                        zeros(n,1);
                        svec(eye(Nvar))];
-    
-    Sol_sens = NTMat\rhs_sens;
+   
+    Sol_sens = NTMatOLD\rhs_sens;
 
     for k = 1:length(Participation)
         X_sens(:,:,Participation(k)) = smat(Sol_sens(Nconst+1:Nconst+n,k));

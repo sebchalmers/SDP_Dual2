@@ -83,7 +83,6 @@ load Data1
 % 
 % end
 
-Ratio_tolDual_tolSub = 10;
 for method_number = 1:length(List_of_Methods)
     Method = List_of_Methods{method_number}
 
@@ -111,9 +110,9 @@ for method_number = 1:length(List_of_Methods)
     %Storage for method compare
     all_res_store{method_number}     = [];
     tau_vs_iter_total{method_number} = [];
+    iterNT_total{method_number}      = [];
     
-    
-    iter_total = 1; %total number of dual iteration of the algorithm
+    iter_Dual_total = 1; %total number of dual iteration of the algorithm
     dlambda_dtau = 0;
     for tau_index = 1:length(tau_table)
         tau     = tau_table(tau_index);
@@ -135,17 +134,18 @@ for method_number = 1:length(List_of_Methods)
 
         
         tau_vs_iter_total{method_number} = [tau_vs_iter_total{method_number};
-                                            tau     iter_total-1];
+                                            tau     iter_Dual_total-1];
         
-        iter = 1;   %number of dual iterations for the current value of the barrier parameter
+        iter_Dual = 1;   %number of dual iterations for the current value of the barrier parameter
 
 
         res = 1e6;
         while (norm(res) > tolDual)  
             D = 0;res = 0;
             for agent = 1:Nagent
-                [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent} ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolIP, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
-
+                [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent}, iterNT ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolIP, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
+                iterNT_total{method_number}(iter_Dual_total,agent) = iterNT;
+                
                 %Dual value
                 DC = lambdaC( lambda, C{agent}, P{agent} );
                 D = D + trace((Q{agent}  + WeightNuclear*eye(Nvar)  + DC)*X{agent}) - tau*log(det(X{agent}));
@@ -187,11 +187,11 @@ for method_number = 1:length(List_of_Methods)
             Lipschitz = max(abs(eig(DH)));
 
             %Store
-            lambda_store{tau_index}(iter,:)          = lambda;
-            D_store{tau_index}(iter)                 = D;
-            res_store{tau_index}(iter)               = norm(res);
-            all_res_store{method_number}(iter_total) = norm(res);
-            DH_store{tau_index}(iter)                = Lipschitz;
+            lambda_store{tau_index}(iter_Dual,:)          = lambda;
+            D_store{tau_index}(iter_Dual)                 = D;
+            res_store{tau_index}(iter_Dual)               = norm(res);
+            all_res_store{method_number}(iter_Dual_total) = norm(res);
+            DH_store{tau_index}(iter_Dual)                = Lipschitz;
 
             %%%%%%%%%%%%%%%%
             %  Dual Update %
@@ -203,8 +203,8 @@ for method_number = 1:length(List_of_Methods)
                     
                 case 'FGM' %Fast Gradient with restart
                     restart = 0;
-                    if (iter > 1)
-                        if (res_store{tau_index}(iter) > res_store{tau_index}(iter-1))
+                    if (iter_Dual > 1)
+                        if (res_store{tau_index}(iter_Dual) > res_store{tau_index}(iter_Dual-1))
                             display('restart')
                             restart   = 1;
                             xFGM_prev = xFGM; % restart inertia
@@ -217,7 +217,7 @@ for method_number = 1:length(List_of_Methods)
                     end
                     
                     if (restart == 0)
-                        lambda    = xFGM + (iter-1)/(iter+2)*(xFGM - xFGM_prev);
+                        lambda    = xFGM + (iter_Dual-1)/(iter_Dual+2)*(xFGM - xFGM_prev);
                         xFGM_prev = xFGM;
                     end
                     
@@ -228,25 +228,25 @@ for method_number = 1:length(List_of_Methods)
             end
 
             %Next iterate
-            iter       = iter + 1;
-            iter_total = iter_total + 1;
+            iter_Dual       = iter_Dual + 1;
+            iter_Dual_total = iter_Dual_total + 1;
 
-            figure(1);clf
-            semilogy(res_store{tau_index});hold on
-            title('Residual')
-            grid on
-            ylim([Ratio_tolDual_tolSub*tau max(10*Ratio_tolDual_tolSub*tau,res_store{tau_index}(1))])
+%             figure(1);clf
+%             semilogy(res_store{tau_index});hold on
+%             title('Residual')
+%             grid on
+%             ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
 
         end
-        iter_store(tau_index,method_number) = iter-1;
+        iter_store(tau_index,method_number) = iter_Dual-1;
         
         tau_vs_iter_total{method_number} = [tau_vs_iter_total{method_number};
-                                            tau     iter_total-1];
-        figure(1);clf
-        semilogy(res_store{tau_index});hold on
-        title('Residual')
-        grid on
-        ylim([Ratio_tolDual_tolSub*tau max(10*Ratio_tolDual_tolSub*tau,res_store{tau_index}(1))])
+                                            tau     iter_Dual_total-1];
+%         figure(1);clf
+%         semilogy(res_store{tau_index});hold on
+%         title('Residual')
+%         grid on
+%         ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
         %pause
             
     end
