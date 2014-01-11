@@ -3,10 +3,9 @@ close all
 clc
 
 List_of_Methods = {'Second_Predictor','Second_NoPredictor','FGM'};
-Marker = {'o','*','x'};
+Marker = {'o','.','x'};
 
-%label = 'tolDual=tau';
-label = 'tolDual=sqrt_tau';
+
 % run /Users/sebastien/Desktop/cvx/cvx_setup
 
 % Test on 2 agents
@@ -126,7 +125,7 @@ for method_number = 1:length(List_of_Methods)
         end
         
         if (tau > tau_table(end))
-            tolDual = sqrt(tau);
+            tolDual = tau*10;
         else
             tolDual = tau;
         end
@@ -261,6 +260,7 @@ for method_number = 1:length(List_of_Methods)
 
 end
 
+<<<<<<< HEAD
 LS = '-';FS = 16;
 %%%% Show 1st-order only
 fig = figure(1);clf
@@ -283,15 +283,19 @@ if save
 end
 
 %%%% Compare all methods
+=======
+%Compare all methods
+>>>>>>> parent of c3e8a43... several tolDual rules
 fig = figure(2);clf
 for method_number = 1:length(List_of_Methods)    
-    semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
+    semilogy(all_res_store{method_number},'linestyle','none','marker',Marker{method_number},'color','k');hold on
 end
 
 
 for method_number = 1:length(List_of_Methods)
     plot(tau_vs_iter_total{method_number}(1:end,2),tau_vs_iter_total{method_number}(1:end,1),'linestyle','-','color','k','linewidth',1);hold on
 end
+<<<<<<< HEAD
 legend('N-D with predictor','N-D w/o predictor','rFGM','location','best')
 ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
 xlabel('Iteration','fontsize',FS)
@@ -302,17 +306,29 @@ if save
     FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers_',label];
     exportfig(fig, FileName,'color','cmyk')
 end
+=======
+legend('N-D','N-D No predictor','FGM','Barrier')
+ylabel('$$\|\nabla D\|$$','interpreter','latex')
+xlabel('Iteration')
+grid on
+
+% PapPos = get(gcf,'PaperPosition');PapPos(3) = 2.2*PapPos(3);
+% set(gcf,'PaperPosition',PapPos)
+FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers'];
+exportfig(fig, FileName,'color','cmyk')
+>>>>>>> parent of c3e8a43... several tolDual rules
 
 %%%% Compare 2nd-order methods
 fig = figure(3);clf
 for method_number = 1:2  
-    semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
+    semilogy(all_res_store{method_number},'linestyle','none','marker',Marker{method_number},'color','k');hold on
 end
 
 
 for method_number = 1:2
     plot(tau_vs_iter_total{method_number}(1:end,2),tau_vs_iter_total{method_number}(1:end,1),'linestyle','-','color','k','linewidth',1);hold on
 end
+<<<<<<< HEAD
 legend('N-D with predictor','N-D w/o predictor')%,'location','best')
 ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
 xlabel('Iteration','fontsize',FS)
@@ -355,3 +371,14 @@ if save
 end
 
 
+=======
+legend('N-D','N-D No predictor','Barrier')
+ylabel('$$\|\nabla D\|$$','interpreter','latex')
+xlabel('Iteration')
+grid on
+
+% PapPos = get(gcf,'PaperPosition');PapPos(3) = 2.2*PapPos(3);
+% set(gcf,'PaperPosition',PapPos)
+FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/Compare2ndOrderSolvers'];
+exportfig(fig, FileName,'color','cmyk')
+>>>>>>> parent of c3e8a43... several tolDual rules
