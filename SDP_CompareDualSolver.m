@@ -231,12 +231,12 @@ for method_number = 1:length(List_of_Methods)
             iter_Dual       = iter_Dual + 1;
             iter_Dual_total = iter_Dual_total + 1;
 
-%             figure(1);clf
-%             semilogy(res_store{tau_index});hold on
-%             title('Residual')
-%             grid on
-%             ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
-
+            figure(1);clf
+            semilogy(res_store{tau_index});hold on
+            title('Residual')
+            grid on
+            ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
+           
         end
         iter_store(tau_index,method_number) = iter_Dual-1;
         
