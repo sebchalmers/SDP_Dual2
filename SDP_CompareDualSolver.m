@@ -10,7 +10,7 @@ label = 'tolDual=sqrt_tau';
 % run /Users/sebastien/Desktop/cvx/cvx_setup
 
 % Test on 2 agents
-
+save = 0;
 display_subproblems = 0;
 
 Nvar   = 8;
@@ -262,7 +262,27 @@ for method_number = 1:length(List_of_Methods)
 end
 
 LS = '-';FS = 16;
-%Compare all methods
+%%%% Show 1st-order only
+fig = figure(1);clf
+for method_number = 3:3 
+    semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
+end
+
+for method_number = 3:3
+    plot(tau_vs_iter_total{method_number}(1:end,2),tau_vs_iter_total{method_number}(1:end,1),'linestyle','-','color','k','linewidth',1);hold on
+end
+%legend('N-D with predictor','N-D w/o predictor','rFGM','location','best')
+ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
+xlabel('Iteration','fontsize',FS)
+set(gca,'fontsize',FS)
+grid on
+
+if save
+    FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/FirstOrder_',label];
+    exportfig(fig, FileName,'color','cmyk')
+end
+
+%%%% Compare all methods
 fig = figure(2);clf
 for method_number = 1:length(List_of_Methods)    
     semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
@@ -273,17 +293,17 @@ for method_number = 1:length(List_of_Methods)
     plot(tau_vs_iter_total{method_number}(1:end,2),tau_vs_iter_total{method_number}(1:end,1),'linestyle','-','color','k','linewidth',1);hold on
 end
 legend('N-D with predictor','N-D w/o predictor','rFGM','location','best')
-ylabel('$$\|\nabla D\|$$','interpreter','latex','fontsize',FS)
+ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
 xlabel('Iteration','fontsize',FS)
 set(gca,'fontsize',FS)
 grid on
 
-% PapPos = get(gcf,'PaperPosition');PapPos(3) = 2.2*PapPos(3);
-% set(gcf,'PaperPosition',PapPos)
-FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers_',label];
-exportfig(fig, FileName,'color','cmyk')
+if save
+    FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers_',label];
+    exportfig(fig, FileName,'color','cmyk')
+end
 
-%Compare 2nd-order methods
+%%%% Compare 2nd-order methods
 fig = figure(3);clf
 for method_number = 1:2  
     semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
@@ -294,18 +314,17 @@ for method_number = 1:2
     plot(tau_vs_iter_total{method_number}(1:end,2),tau_vs_iter_total{method_number}(1:end,1),'linestyle','-','color','k','linewidth',1);hold on
 end
 legend('N-D with predictor','N-D w/o predictor')%,'location','best')
-ylabel('$$\|\nabla D\|$$','interpreter','latex','fontsize',FS)
+ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
 xlabel('Iteration','fontsize',FS)
 set(gca,'fontsize',FS)
 grid on
 
-% PapPos = get(gcf,'PaperPosition');PapPos(3) = 2.2*PapPos(3);
-% set(gcf,'PaperPosition',PapPos)
-FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/Compare2ndOrderSolvers_',label];
-exportfig(fig, FileName,'color','cmyk')
+if save
+    FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/Compare2ndOrderSolvers_',label];
+    exportfig(fig, FileName,'color','cmyk')
+end
 
-
-%Compare number of iteration
+%%%% Compare number of iteration
 Marker = {'o','*','x'};
 fig = figure(4);clf
 subplot(2,1,1)
@@ -330,5 +349,9 @@ ylim([0,max(max(iter_store(:,1:2)))])
 set(gca,'XDir','reverse','fontsize',FS);
 legend('N-D with predictor','N-D w/o predictor','location','best')
 %title('# of iteration at each barrier value')
-FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers_iterations_',label];
-exportfig(fig, FileName,'color','cmyk')
+if save
+    FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers_iterations_',label];
+    exportfig(fig, FileName,'color','cmyk')
+end
+
+

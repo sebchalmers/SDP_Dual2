@@ -5,6 +5,7 @@ function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol
     
     Nvar   = size(X,1);
     Nconst = size(A,3);
+    n = Nvar*(Nvar+1)/2;
     
     norm_residual = 1e6;
 
@@ -16,45 +17,9 @@ function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol
     while (norm_residual > tol)
 
         %Form NT system
-        [ W, G, IG ] = computeWandG( X, Z );
-        P = IG;IP = G;
+        [ rhs, NTMat, norm_residual ] = FormNTSystem(  X, Z, mu, lambda, Q, A, a, C, Participation, tau  );
 
-        n = Nvar*(Nvar+1)/2;
-        AMat = zeros(Nconst,n);
-        for k = 1:Nconst
-            AMat(k,:) = svec(A(:,:,k)).';
-        end
-        I = eye(n);
-        E = skron(P,IP.'*Z);
-        F = skron(P*X,IP.');
-
-        NTMat = [zeros(Nconst,Nconst)   AMat        zeros(Nconst,n);
-                      AMat.'           zeros(n,n)        I         ;
-                 zeros(n,Nconst)         E               F          ];
-
-        rp = a - AMat*svec(X);
-
-        %Dualize constraints
-        DC = lambdaC( lambda, C, Participation );
-        
-        Rd = Q + DC - Z;
-        for k = 1:Nconst
-            Rd = Rd - mu(k)*A(:,:,k);
-        end
-
-        Rc = tau*eye(Nvar) - HP(P,IP,X*Z);
-
-        rc = svec(Rc);
-        rd = svec(Rd);
-        
-        rhs = [rp;
-               rd;
-               rc];
-
-
-        norm_residual = norm(rhs);
-
-        % Compute NT step
+        % Compute NT direction
         NTstep = NTMat\rhs;
 
         dmu = NTstep(1:Nconst);
@@ -62,9 +27,6 @@ function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol
         dZ  = smat(NTstep(Nconst+n+1:end));
 
         % Compute update
-
-        % Step-size (maintain positivity)
-         
         alpha = 1;
 
         tolcond = min([eig(X);
@@ -110,16 +72,16 @@ function [ X, Z, mu, X_sens, X_sens_tau ] = NTSolve(Q, C, lambda, A, a, tau, tol
     
 
     end
-    
+
     %Compute Gradient of X w.r.t lambda
     for k = 1:length(Participation)
-        rhs_sens(:,k) = [zeros(size(rp));
+        rhs_sens(:,k) = [zeros(size(a));
                          svec(C(:,:,Participation(k)));
-                         zeros(size(rc))];
+                         zeros(n,1)];
     end
 
-    rhs_sens(:,k+1) = [zeros(size(rp));
-                       zeros(size(rd));
+    rhs_sens(:,k+1) = [zeros(size(a));
+                       zeros(n,1);
                        svec(eye(Nvar))];
     
     Sol_sens = NTMat\rhs_sens;
