@@ -1,4 +1,4 @@
-function [ X, Z, mu, X_sens, X_sens_tau, iter ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation, display)
+function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_tau, iter ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation, display)
 % Solve the NT system up to tolerance tol
 
     %Some dimensions
@@ -46,9 +46,7 @@ function [ X, Z, mu, X_sens, X_sens_tau, iter ] = NTSolve(Q, C, lambda, A, a, ta
         X  = X  + alpha*dX;
         Z  = Z  + alpha*dZ;
         mu = mu + alpha*dmu;
-
-        
-        
+      
         %Update residual & NT system
         NTMatOLD = NTMat; %Keep previous NTMat for sensitivity computation (in case factorization is not updated)
         [ rhs, NTMat, norm_residual ] = FormNTSystem(  X, Z, mu, lambda, Q, A, a, C, Participation, tau  );
@@ -86,13 +84,20 @@ function [ X, Z, mu, X_sens, X_sens_tau, iter ] = NTSolve(Q, C, lambda, A, a, ta
                        zeros(n,1);
                        svec(eye(Nvar))];
    
-    Sol_sens = NTMatOLD\rhs_sens;
+    Sol_sens = NTMat\rhs_sens;
 
+    %Extract Sensitivities
     for k = 1:length(Participation)
+        mu_sens(:,Participation(k))  = Sol_sens(1:Nconst,k);
         X_sens(:,:,Participation(k)) = smat(Sol_sens(Nconst+1:Nconst+n,k));
+        Z_sens(:,:,Participation(k)) = smat(Sol_sens(Nconst+n+1:end,k));
     end
 
+    mu_sens_tau = Sol_sens(1:Nconst,k+1);
     X_sens_tau = smat(Sol_sens(Nconst+1:Nconst+n,k+1));
+    Z_sens_tau = smat(Sol_sens(Nconst+n+1:end,k+1));
+    
+    
     
     if (display == 1)
         figure(1);clf

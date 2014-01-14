@@ -5,11 +5,10 @@ clc
 List_of_Methods = {'Second_Predictor','Second_NoPredictor','FGM'};
 Marker = {'o','*','x'};
 
-%label = '_sqrt_tau';
 label = '';
 % run /Users/sebastien/Desktop/cvx/cvx_setup
 
-save = 1;
+save = 0;
 display_subproblems = 0;
 
 Nvar   = 8;
@@ -112,23 +111,17 @@ for method_number = 1:length(List_of_Methods)
     iterNT_total{method_number}      = [];
     
     iter_Dual_total = 1; %total number of dual iteration of the algorithm
-    dlambda_dtau = 0;
+    dlambda_dtau = 0;tau = 1/0.7;
     for tau_index = 1:length(tau_table)
-        tau     = tau_table(tau_index);
-        
-        tau
-        for agent = 1:Nagent
-            trace(X{agent}*Z{agent})/Nvar
-        end
-        
-%         tolDual = tau;
+        tau     = 0.7*tau;
         
         if (tau > tau_table(end))
-            tolDual = tau;
+            tolDual = sqrt(tau);
         else
             tolDual = tau;
         end
 
+        %tolDual = sqrt(tau);
         tolIP   = max(tau^2,10*eps);
         
         tau_vs_iter_total{method_number} = [tau_vs_iter_total{method_number};
@@ -138,7 +131,7 @@ for method_number = 1:length(List_of_Methods)
 
 
         res = 1e6;lambda_old = lambda;
-        while (norm(res,inf) > tolDual)  
+        while (norm(res) > tolDual)  
             D = 0;res = 0;
             tau_total(iter_Dual_total) = tau;
             for agent = 1:Nagent
@@ -189,8 +182,8 @@ for method_number = 1:length(List_of_Methods)
             %Store
             lambda_store{tau_index}(iter_Dual,:)          = lambda;
             D_store{tau_index}(iter_Dual)                 = D;
-            res_store{tau_index}(iter_Dual)               = norm(res,inf);
-            all_res_store{method_number}(iter_Dual_total) = norm(res,inf);
+            res_store{tau_index}(iter_Dual)               = norm(res);
+            all_res_store{method_number}(iter_Dual_total) = norm(res);
             DH_store{tau_index}(iter_Dual)                = Lipschitz;
 
             %%%%%%%%%%%%%%%%
@@ -305,7 +298,7 @@ for method_number = 3:3
     plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,3),'linestyle','--','color','k','linewidth',1);hold on
 end
 %legend('N-D with predictor','N-D w/o predictor','rFGM','location','best')
-ylabel('$$\|\nabla_\lambda D\|_\infty$$','interpreter','latex','fontsize',FS)
+ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
 xlabel('Iteration','fontsize',FS)
 set(gca,'fontsize',FS)
 grid on
@@ -323,7 +316,7 @@ for method_number = 1:length(List_of_Methods)
     semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
     plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,2),'linestyle','-','color','k','linewidth',1);hold on
     plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,3),'linestyle','--','color','k','linewidth',1);hold on
-    ylabel('$$\|\nabla_\lambda D\|_\infty$$','interpreter','latex','fontsize',FS)
+    ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
     set(gca,'fontsize',FS)
     title(List_titles{method_number})
     grid on
@@ -352,7 +345,7 @@ for method_number = 1:2
     plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,3),'linestyle','--','color','k','linewidth',1);hold on
 end
 legend('N-D with predictor','N-D w/o predictor')%,'location','best')
-ylabel('$$\|\nabla_\lambda D\|_\infty$$','interpreter','latex','fontsize',FS)
+ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
 xlabel('Iteration','fontsize',FS)
 set(gca,'fontsize',FS)
 grid on
@@ -365,7 +358,7 @@ end
 %%%% Compare number of iteration
 Marker = {'o','*','x'};
 fig = figure(4);clf
-%subplot(2,1,1)
+subplot(2,1,1)
 for method_number = 1:length(List_of_Methods)
     loglog(tau_table,iter_store(:,method_number),'linestyle','none','marker',Marker{method_number},'color','k');hold on
 end
@@ -373,20 +366,20 @@ axis tight
 xlabel('$$\tau$$','interpreter','latex','fontsize',FS);
 ylabel(['#Dual iteration'],'fontsize',FS)
 grid on    
-legend('N-D with predictor','N-D w/o predictor','rFGM','location','east')
+legend('N-D with predictor','N-D w/o predictor','rFGM','location','best')
 
 ylim([0,max(max(iter_store))])
 set(gca,'XDir','reverse','fontsize',FS);
 
-% subplot(2,1,2)
-% for method_number = 1:2
-%     loglog(tau_table,iter_store(:,method_number),'linestyle','none','marker',Marker{method_number},'color','k');hold on
-% end    
-% xlabel('$$\tau$$','interpreter','latex','fontsize',FS);ylabel(['#Dual iteration'],'fontsize',FS)
-% grid on    
-% ylim([0,max(max(iter_store(:,1:2)))])
-% set(gca,'XDir','reverse','fontsize',FS);
-% legend('N-D with predictor','N-D w/o predictor','location','best')
+subplot(2,1,2)
+for method_number = 1:2
+    loglog(tau_table,iter_store(:,method_number),'linestyle','none','marker',Marker{method_number},'color','k');hold on
+end    
+xlabel('$$\tau$$','interpreter','latex','fontsize',FS);ylabel(['#Dual iteration'],'fontsize',FS)
+grid on    
+ylim([0,max(max(iter_store(:,1:2)))])
+set(gca,'XDir','reverse','fontsize',FS);
+legend('N-D with predictor','N-D w/o predictor','location','best')
 %title('# of iteration at each barrier value')
 if save
     FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers_iterations',label];
