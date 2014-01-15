@@ -2,13 +2,14 @@ clear all
 close all
 clc
 
-List_of_Methods = {'Second_Predictor','Second_NoPredictor','FGM'};
+List_of_Methods = {'Second_Predictor'};%,'Second_NoPredictor','FGM'};
 Marker = {'o','*','x'};
 
-label = '';
+label = '_sqrt_tau';
+%label = '';
 % run /Users/sebastien/Desktop/cvx/cvx_setup
 
-save = 0;
+save = 1;
 display_subproblems = 0;
 
 Nvar   = 8;
@@ -91,7 +92,7 @@ for method_number = 1:length(List_of_Methods)
 
     tauEnd    = -6; %(order)
     tau_table = logspace(0,tauEnd,40);
-    
+    toltau    = 1e-6;
     
     %Naive guess
     for agent = 1:Nagent
@@ -109,19 +110,19 @@ for method_number = 1:length(List_of_Methods)
     all_res_store{method_number}     = [];
     tau_vs_iter_total{method_number} = [];
     iterNT_total{method_number}      = [];
-    
+    iterDual_store{method_number}    = [];
+      
     iter_Dual_total = 1; %total number of dual iteration of the algorithm
-    dlambda_dtau = 0;tau = 1/0.7;
-    for tau_index = 1:length(tau_table)
-        tau     = 0.7*tau;
+    dlambda_dtau = 0;tau = 1;
+    while tau > toltau
         
         if (tau > tau_table(end))
-            tolDual = sqrt(tau);
+                tolDual = sqrt(tau);
+                %tolDual = tau;
         else
             tolDual = tau;
         end
 
-        %tolDual = sqrt(tau);
         tolIP   = max(tau^2,10*eps);
         
         tau_vs_iter_total{method_number} = [tau_vs_iter_total{method_number};
@@ -129,9 +130,10 @@ for method_number = 1:length(List_of_Methods)
         
         iter_Dual = 1;   %number of dual iterations for the current value of the barrier parameter
 
-
+        
+        
         res = 1e6;lambda_old = lambda;
-        while (norm(res) > tolDual)  
+        while (norm(res,inf) > tolDual)  
             D = 0;res = 0;
             tau_total(iter_Dual_total) = tau;
             for agent = 1:Nagent
@@ -143,7 +145,7 @@ for method_number = 1:length(List_of_Methods)
                 DC = lambdaC( lambda, C{agent}, P{agent} );
                 D = D + trace((Q{agent}  + WeightNuclear*eye(Nvar)  + DC)*X{agent}) - tau*log(det(X{agent}));
 
-                %Residual 
+                %Dual Residual 
                 for const = 1:length(Cset) %walk through the C-sets
                     res(const,1) = 0; %res for constraint 'const'
                     for index = 1:length(Cset{const}) %sum over all the agents participating in constraint 'const'
@@ -153,7 +155,7 @@ for method_number = 1:length(List_of_Methods)
                     end
                 end
             end
-
+            
             %Compute dual Hessian
             DH = zeros(length(Cset),length(Cset));
             for m = 1:length(Cset)
@@ -180,11 +182,9 @@ for method_number = 1:length(List_of_Methods)
             Lipschitz = max(abs(eig(DH)));
 
             %Store
-            lambda_store{tau_index}(iter_Dual,:)          = lambda;
-            D_store{tau_index}(iter_Dual)                 = D;
-            res_store{tau_index}(iter_Dual)               = norm(res);
-            all_res_store{method_number}(iter_Dual_total) = norm(res);
-            DH_store{tau_index}(iter_Dual)                = Lipschitz;
+            res_store(iter_Dual)                          = norm(res,inf);
+            all_res_store{method_number}(iter_Dual_total) = norm(res,inf);
+
 
             %%%%%%%%%%%%%%%%
             %  Dual Update %
@@ -197,7 +197,7 @@ for method_number = 1:length(List_of_Methods)
                 case 'FGM' %Fast Gradient with restart
                     restart = 0;lambda_old = lambda;
                     if (iter_Dual > 1)
-                        if (res_store{tau_index}(iter_Dual) > res_store{tau_index}(iter_Dual-1))
+                        if (res_store(iter_Dual) > res_store(iter_Dual-1))
                             display('restart')
                             restart   = 1;
                             xFGM_prev = xFGM; % restart inertia
@@ -215,7 +215,18 @@ for method_number = 1:length(List_of_Methods)
                     end
                     
                 case 'Second_Predictor'   %Second order update 
-                    lambda  = lambda - DH\res;
+                    dlambda = - DH\res;
+                    lambda  = lambda + dlambda;
+                    
+                    %Predictor on the local solutions               
+                    for agent = 1:Nagent         
+                        for k = 1:length(P{agent})
+                            mu{agent} = mu{agent} + mu_sens{agent}(:,P{agent}(k))*dlambda(P{agent}(k)) ;
+                            X{agent}  = X{agent}  + X_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
+                            Z{agent}  = Z{agent}  + Z_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
+                        end
+                    end
+                    
                 case 'Second_NoPredictor'   %Second order update
                     lambda  = lambda - DH\res;
             end
@@ -225,88 +236,54 @@ for method_number = 1:length(List_of_Methods)
             iter_Dual       = iter_Dual + 1;
             iter_Dual_total = iter_Dual_total + 1;
 
-%             figure(1);clf
-%             semilogy(res_store{tau_index});hold on
-%             title('Residual')
-%             grid on
-%             ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
+
            
         end
         
+        iterDual_store{method_number} = [iterDual_store{method_number};iter_Dual-1];
         
+        tau_vs_iter_total{method_number} = [tau_vs_iter_total{method_number};
+                                            iter_Dual_total-1   tau  tolDual tolIP];
+       
+        
+        %Update tau
+        dtau = -0.298296171329617*tau;
+        tau  = tau + dtau;
+
         %Update of the dual variable for the coming tau update
-        if (tau_index < length(tau_table)) 
-            dtau = tau_table(tau_index+1) - tau_table(tau_index);
+        if (tau > toltau) 
             switch Method
                 case 'Second_Predictor'   
                     %Update primal-dual after barrier update using predictors
-                    lambda = lambda + dlambda_dtau*dtau;                    
+                    dlambda = dlambda_dtau*dtau;
+                    lambda = lambda + dlambda;                    
                     for agent = 1:Nagent
                         mu{agent} = mu{agent} + mu_sens_tau{agent}*dtau;
                         X{agent}  = X{agent}  + X_sens_tau{agent}*dtau;
                         Z{agent}  = Z{agent}  + Z_sens_tau{agent}*dtau;
                     end
                     
-%                     %Predictor on the local solutions
-%                     dlambda = lambda-lambda_old;               
-%                     for agent = 1:Nagent         
-%                         for k = 1:length(P{agent})
-%                             mu{agent} = mu{agent} + mu_sens{agent}(:,P{agent}(k))*dlambda(P{agent}(k)) ;
-%                             X{agent}  = X{agent}  + X_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
-%                             Z{agent}  = Z{agent}  + Z_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
-%                         end
-%                     end
-%                     lambda_old = lambda;
-                    
+                    %Predictor on the local solutions               
+                    for agent = 1:Nagent         
+                        for k = 1:length(P{agent})
+                            mu{agent} = mu{agent} + mu_sens{agent}(:,P{agent}(k))*dlambda(P{agent}(k)) ;
+                            X{agent}  = X{agent}  + X_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
+                            Z{agent}  = Z{agent}  + Z_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
+                        end
+                    end
             end
         end
             
         
-        
-        iter_store(tau_index,method_number) = iter_Dual-1;
-        
-        tau_vs_iter_total{method_number} = [tau_vs_iter_total{method_number};
-                                            iter_Dual_total-1   tau  tolDual tolIP];
-        figure(1);clf
-        semilogy(res_store{tau_index});hold on
-        title('Residual')
-        grid on
-        ylim([tolDual max(10*tolDual,res_store{tau_index}(1))])
-        %pause
             
     end
 
-    figure(3)
-    barh(log10(tau_table(1:tau_index)),iter_store)
-    ylabel('log10(Barrier)');
-    grid on    
-    title('# of iteration at each barrier value')
-    sum(iter_store(:,1))
 
 
 end
 
 LS = '-';FS = 16;
-%%%% Show 1st-order only
-fig = figure(1);clf
-for method_number = 3:3 
-    semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
-end
 
-for method_number = 3:3
-    plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,2),'linestyle','-','color','k','linewidth',1);hold on
-    plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,3),'linestyle','--','color','k','linewidth',1);hold on
-end
-%legend('N-D with predictor','N-D w/o predictor','rFGM','location','best')
-ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
-xlabel('Iteration','fontsize',FS)
-set(gca,'fontsize',FS)
-grid on
-
-if save
-    FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/FirstOrder',label];
-    exportfig(fig, FileName,'color','cmyk')
-end
 
 %%%% Compare all methods
 fig = figure(2);clf
@@ -316,7 +293,7 @@ for method_number = 1:length(List_of_Methods)
     semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
     plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,2),'linestyle','-','color','k','linewidth',1);hold on
     plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,3),'linestyle','--','color','k','linewidth',1);hold on
-    ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
+    ylabel('$$\|\nabla_\lambda D\|_\infty$$','interpreter','latex','fontsize',FS)
     set(gca,'fontsize',FS)
     title(List_titles{method_number})
     grid on
@@ -324,7 +301,7 @@ for method_number = 1:length(List_of_Methods)
 end
 
 %legend('N-D with predictor','N-D w/o predictor','rFGM','location','best')
-xlabel('Iteration','fontsize',FS)
+xlabel('Dual iteration','fontsize',FS)
 
 if save
     PapPos = get(gcf,'PaperPosition');PapPos(4) = 1.5*PapPos(4);
@@ -334,83 +311,29 @@ if save
     exportfig(fig, FileName,'color','cmyk')
 end
 
-%%%% Compare 2nd-order methods
-fig = figure(3);clf
-for method_number = 1:2  
-    semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
-end
-
-for method_number = 1:2
-    plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,2),'linestyle','-','color','k','linewidth',1);hold on
-    plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,3),'linestyle','--','color','k','linewidth',1);hold on
-end
-legend('N-D with predictor','N-D w/o predictor')%,'location','best')
-ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
-xlabel('Iteration','fontsize',FS)
-set(gca,'fontsize',FS)
-grid on
-
-if save
-    FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/Compare2ndOrderSolvers',label];
-    exportfig(fig, FileName,'color','cmyk')
-end
 
 %%%% Compare number of iteration
 Marker = {'o','*','x'};
 fig = figure(4);clf
-subplot(2,1,1)
+%subplot(2,1,1)
 for method_number = 1:length(List_of_Methods)
-    loglog(tau_table,iter_store(:,method_number),'linestyle','none','marker',Marker{method_number},'color','k');hold on
+    loglog(tau_table,iterDual_store{method_number},'linestyle','none','marker',Marker{method_number},'color','k');hold on
 end
 axis tight
 xlabel('$$\tau$$','interpreter','latex','fontsize',FS);
 ylabel(['#Dual iteration'],'fontsize',FS)
 grid on    
-legend('N-D with predictor','N-D w/o predictor','rFGM','location','best')
+legend('N-D with predictor','N-D w/o predictor','rFGM','location','east')
 
-ylim([0,max(max(iter_store))])
+axis tight
 set(gca,'XDir','reverse','fontsize',FS);
 
-subplot(2,1,2)
-for method_number = 1:2
-    loglog(tau_table,iter_store(:,method_number),'linestyle','none','marker',Marker{method_number},'color','k');hold on
-end    
-xlabel('$$\tau$$','interpreter','latex','fontsize',FS);ylabel(['#Dual iteration'],'fontsize',FS)
-grid on    
-ylim([0,max(max(iter_store(:,1:2)))])
-set(gca,'XDir','reverse','fontsize',FS);
-legend('N-D with predictor','N-D w/o predictor','location','best')
-%title('# of iteration at each barrier value')
+
 if save
     FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers_iterations',label];
     exportfig(fig, FileName,'color','cmyk')
 end
 
-%%%% Compuate IP iterations
-fig = figure(5);clf
-subplot(2,1,1)
-for method_number = 3:3
-    semilogy(max(iterNT_total{method_number}),'linestyle','none','marker',Marker{method_number},'color','k');hold on
-end    
-%xlabel('$$\tau$$','interpreter','latex','fontsize',FS);
-%ylabel(['#Dual iteration'],'fontsize',FS)
-grid on    
-legend('rFGM','location','best')
-
-subplot(2,1,2)
-for method_number = 1:2
-    semilogy(max(iterNT_total{method_number}),'linestyle','none','marker',Marker{method_number},'color','k');hold on
-end    
-%xlabel('$$\tau$$','interpreter','latex','fontsize',FS);ylabel(['#Dual iteration'],'fontsize',FS)
-grid on    
-%ylim([0,max(max(iter_store(:,1:2)))])
-%set(gca,'XDir','reverse','fontsize',FS);
-legend('N-D with predictor','N-D w/o predictor','location','best')
-%title('# of iteration at each barrier value')
-if save
-    FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/CompareSolvers_iterations2',label];
-    exportfig(fig, FileName,'color','cmyk')
-end
 
 
 fig = figure(6);clf

@@ -23,29 +23,34 @@ function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_ta
         dX  = smat(NTstep(Nconst+1:Nconst+n));
         dZ  = smat(NTstep(Nconst+n+1:end));
 
-        % Compute update
-        alpha = 1;
-
-        tolcond = min([eig(X);
-                       eig(Z)]);
-
-        cond = min([eig(X + alpha*dX);
-                    eig(Z + alpha*dZ)]);
-
-        while (cond < 0.9*tolcond) 
-            alpha = 0.9*alpha;
-            cond = min([eig(X + alpha*dX);
-                        eig(Z + alpha*dZ)]);
-            if (alpha < 1e-6)
-                alpha
-            end
-        end
-
-        %display(['NT Line-search, tolcond: ',num2str(tolcond),' | cond: ',num2str(cond),' | alpha = ',num2str(alpha)])
+        % Compute update back-tracking style
+%         alpha = 1;
+% 
+%         tolcond = min([eig(X);
+%                        eig(Z)]);
+% 
+%         cond = min([eig(X + alpha*dX);
+%                     eig(Z + alpha*dZ)]);
+% 
+%         while (cond < 0.9*tolcond) 
+%             alpha = 0.9*alpha;
+%             cond = min([eig(X + alpha*dX);
+%                         eig(Z + alpha*dZ)]);
+%             if (alpha < 1e-6)
+%                 alpha
+%             end
+%         end
+%         alphaX = alpha;alphaZ = alpha;
         
-        X  = X  + alpha*dX;
-        Z  = Z  + alpha*dZ;
-        mu = mu + alpha*dmu;
+        alphaX = alphaPos( X, dX );
+        alphaZ = alphaPos( Z, dZ );
+         
+
+        
+
+        X  = X  + alphaX*dX;
+        Z  = Z  + alphaZ*dZ;
+        mu = mu + alphaZ*dmu;
       
         %Update residual & NT system
         NTMatOLD = NTMat; %Keep previous NTMat for sensitivity computation (in case factorization is not updated)
@@ -53,7 +58,7 @@ function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_ta
 
         %Storage
         Record.res_norm = [Record.res_norm;norm_residual];
-        Record.alpha    = [Record.alpha;alpha];
+        %Record.alpha    = [Record.alpha;alpha];
         
         iter = iter + 1;
         
@@ -72,6 +77,7 @@ function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_ta
 
     end
 
+    PosCheck( X, Z );
     
     %Compute Gradient of X w.r.t lambda
     for k = 1:length(Participation)
@@ -84,7 +90,7 @@ function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_ta
                        zeros(n,1);
                        svec(eye(Nvar))];
    
-    Sol_sens = NTMat\rhs_sens;
+    Sol_sens = NTMatOLD\rhs_sens;
 
     %Extract Sensitivities
     for k = 1:length(Participation)
