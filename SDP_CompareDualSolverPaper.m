@@ -5,11 +5,9 @@ clc
 List_of_Methods = {'Second_Predictor','Second_NoPredictor','FGM'};
 Marker = {'o','*','x'};
 
-%label = '_sqrt_tau';
 label = '';
-% run /Users/sebastien/Desktop/cvx/cvx_setup
 
-save = 1;
+save = 0;
 display_subproblems = 0;
 
 Nvar   = 8;
@@ -121,8 +119,11 @@ for method_number = 1:length(List_of_Methods)
             D = 0;res = 0;
             tau_total(iter_Dual_total) = tau;
             for agent = 1:Nagent
-                [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent}, Z_sens{agent}, Z_sens_tau{agent}, mu_sens{agent}, mu_sens_tau{agent}, iterNT ] = NTSolveMehrotra(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolNT, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
-
+                if (tau < 1)
+                    [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent}, Z_sens{agent}, Z_sens_tau{agent}, mu_sens{agent}, mu_sens_tau{agent}, iterNT ] = NTSolveMehrotra(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolNT, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
+                else
+                    [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent}, Z_sens{agent}, Z_sens_tau{agent}, mu_sens{agent}, mu_sens_tau{agent}, iterNT ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tolNT, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
+                end
                 iterNT_total{method_number}(agent,iter_Dual_total) = iterNT;
                 
                 
@@ -262,7 +263,7 @@ for method_number = 1:length(List_of_Methods)
     semilogy(all_res_store{method_number},'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
     plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,2),'linestyle','-','color','k','linewidth',1);hold on
     plot(tau_vs_iter_total{method_number}(1:end,1),tau_vs_iter_total{method_number}(1:end,3),'linestyle','--','color','k','linewidth',1);hold on
-    ylabel('$$\|\nabla_\lambda D\|_\infty$$','interpreter','latex','fontsize',FS)
+    ylabel('$$\|\nabla_\lambda D\|$$','interpreter','latex','fontsize',FS)
     set(gca,'fontsize',FS)
     title(List_titles{method_number})
     grid on

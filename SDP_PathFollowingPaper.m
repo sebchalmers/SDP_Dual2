@@ -2,19 +2,22 @@ clear all
 close all
 clc
 
-List_of_Methods = {'Second_Dual_Predictor','Second_All_Predictor','Adaptive'};
+%List_of_Methods = {'Second_All_Predictor','Adaptive'};
+
+
+List_of_Methods = {'Second_All_Predictor','Second_Dual_Predictor'};%,'Second_Primal_Dual_Dual_Predictor'};
 Marker = {'o','*','x'};
 
 
 label = '';
 
-save = 1;
+save = 0;
 display_subproblems = 0;
 
 Nvar   = 8;
 Nconst = 2;
 
-%Data = 4;
+%Data = 3;
 Data = 'Data1';
 
 if isstr(Data)
@@ -96,7 +99,7 @@ for method_number = 1:length(List_of_Methods)
             
 
 
-    gamma = 0.7;
+    gamma = 0.6;
       
     dlambda_dtau = 0;
     tau = 1;
@@ -105,7 +108,7 @@ for method_number = 1:length(List_of_Methods)
     
     %%%% Initialize on the central path (step 1)
     for agent = 1:Nagent    
-        [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent}, Z_sens{agent}, Z_sens_tau{agent}, mu_sens{agent}, mu_sens_tau{agent}, Store{method_number}.iterNT(agent) ] = NTSolveMehrotra(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tau, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
+        [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent}, Z_sens{agent}, Z_sens_tau{agent}, mu_sens{agent}, mu_sens_tau{agent}, Store{method_number}.iterNT(agent) ] = NTSolve(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau, tau, X{agent}, Z{agent}, mu{agent}, P{agent}, display_subproblems);
     end
     
     while tau > toltau || norm(res) > toltau
@@ -117,7 +120,7 @@ for method_number = 1:length(List_of_Methods)
         %Initiate res and D for summation
         res = 0;D = 0;
         for agent = 1:Nagent
-            [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent}, Z_sens{agent}, Z_sens_tau{agent}, mu_sens{agent}, mu_sens_tau{agent} ] = NTStepMehrotra(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau,  X{agent}, Z{agent}, mu{agent}, P{agent});
+            [ X{agent}, Z{agent}, mu{agent}, X_sens{agent}, X_sens_tau{agent}, Z_sens{agent}, Z_sens_tau{agent}, mu_sens{agent}, mu_sens_tau{agent} ] = NTStep(Q{agent} + WeightNuclear*eye(Nvar), C{agent}, lambda, A{agent}, a{agent}, tau,  X{agent}, Z{agent}, mu{agent}, P{agent});
             
 
 
@@ -164,22 +167,16 @@ for method_number = 1:length(List_of_Methods)
         end
 
         %%%% Update barrier tau (step 4)  
-        if (tau <= toltau)
-            gamma = 1;
-        end
-        
-                %Update tau
-
         switch Method
             case 'Adaptive'
                 %Feedback on gamma
                 if (tau < 1)
-                    Kp = 0.02;Kd = -0.01;
+                    Kp = 0.02;Kd = 0.0;
                 else
                     Kp = 0;Kd = 0;
                 end
                 
-                Error = (norm(res)-sqrt(tau))/sqrt(tau);
+                Error = (norm(res)-tau^0.5)/tau^0.5;
                 
                 Pcorr = Kp*Error;
                 if (tau < 1)
@@ -188,12 +185,18 @@ for method_number = 1:length(List_of_Methods)
                 else
                     Dcorr = 0;
                 end
-                gamma = max(0.5,min(1,gamma + Pcorr + Dcorr));
+                gamma = max(0.1,min(1,gamma + Pcorr + Dcorr));
 
                 Error_prev = Error;
 
         end
         
+        if (tau <= toltau)
+            gamma = 1;
+        end
+        
+        %Update tau
+        Store{method_number}.gamma(tau_index) = gamma;
         
         tau_new = gamma*tau;
         dtau = tau_new - tau;
@@ -203,8 +206,17 @@ for method_number = 1:length(List_of_Methods)
 
         %%%%  Dual Update  (step 5)  
 
-        dlambda = - DH\(res + Dtau*dtau);
-
+        switch Method
+            case 'Second_Primal_Dual_Dual_Predictor'
+                dlambda = - DH\res;
+                
+            case 'Second_Dual_Predictor'
+                dlambda = - DH\(res + Dtau*dtau);
+                
+            case 'Second_All_Predictor'
+                dlambda = - DH\(res + Dtau*dtau);
+        end
+        
         %Update dual variables with predictor
         lambda = lambda + dlambda;
         
@@ -212,8 +224,55 @@ for method_number = 1:length(List_of_Methods)
         switch Method
             case 'Second_Dual_Predictor'
                 % No local update
+            
+            case 'Second_Primal_Dual_Dual_Predictor'
+                 for agent = 1:Nagent
+                    dmu = 0*mu_sens_tau{agent}*dtau;
+                    dX  = 0*X_sens_tau{agent}*dtau;
+                    dZ  = 0*Z_sens_tau{agent}*dtau;
+
+                    for k = 1:length(P{agent})
+                        dmu = dmu + mu_sens{agent}(:,P{agent}(k))*dlambda(P{agent}(k)) ;
+                        dX  = dX  + X_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
+                        dZ  = dZ  + Z_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
+                    end
+
+                    alphaX = alphaPos( X{agent}, dX );
+                    alphaZ = alphaPos( Z{agent}, dZ );
+
+                    mu{agent} = mu{agent} + dmu;
+                    X{agent}  = X{agent}  + alphaX*dX;
+                    Z{agent}  = Z{agent}  + alphaZ*dZ;
+
+                    PosCheck( X{agent}, Z{agent} );
+
+                end
                 
             case 'Second_All_Predictor'
+
+                for agent = 1:Nagent
+                    dmu = mu_sens_tau{agent}*dtau;
+                    dX  = X_sens_tau{agent}*dtau;
+                    dZ  = Z_sens_tau{agent}*dtau;
+
+                    for k = 1:length(P{agent})
+                        dmu = dmu + mu_sens{agent}(:,P{agent}(k))*dlambda(P{agent}(k)) ;
+                        dX  = dX  + X_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
+                        dZ  = dZ  + Z_sens{agent}(:,:,P{agent}(k))*dlambda(P{agent}(k));
+                    end
+
+                    alphaX = alphaPos( X{agent}, dX );
+                    alphaZ = alphaPos( Z{agent}, dZ );
+
+                    mu{agent} = mu{agent} + dmu;
+                    X{agent}  = X{agent}  + alphaX*dX;
+                    Z{agent}  = Z{agent}  + alphaZ*dZ;
+
+                    PosCheck( X{agent}, Z{agent} );
+
+                end
+                
+             case 'Adaptive'
 
                 for agent = 1:Nagent
                     dmu = mu_sens_tau{agent}*dtau;
@@ -261,7 +320,7 @@ fig = figure(1);clf
 for method_number = 1:length(List_of_Methods)
     loglog(Store{method_number}.tau,Store{method_number}.res,'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
 end
-legend({'Algorithm 2, w/o step 7','Algorithm 2'},'location','southwest')
+legend({'Algorithm 2','Algorithm 2, w/o step 6'},'location','southwest')
 loglog(Store{method_number}.tau,Store{method_number}.tau,'linestyle','--','color','k');hold on
 
 line([10 tau],[toltau toltau],'linestyle','--','color','k')
@@ -294,8 +353,11 @@ fig = figure(2);clf
 for method_number = 1:length(List_of_Methods)
     semilogy(Store{method_number}.res,'linestyle',LS,'marker',Marker{method_number},'color','k');hold on
 end
-semilogy(Store{method_number}.tau,'linestyle','-','color','k');hold on
-legend({'Algorithm 2, w/o step 7\qquad','Algorithm 2','Barrier parameter $$\tau$$'},'interpreter','latex','fontsize',FS,'location','southwest')
+legend({'Algorithm 2','Algorithm 2, w/o step 6\qquad'},'interpreter','latex','fontsize',FS,'location','southwest')
+for method_number = 1:length(List_of_Methods)
+    semilogy(Store{method_number}.tau,'linestyle','-','color','k');hold on
+    %semilogy(sqrt(Store{method_number}.tau),'linestyle','--','color','k');hold on
+end
 
 
 line([1 Store{method_number}.iter],[toltau toltau],'linestyle','--','color','k')
@@ -330,7 +392,7 @@ grid on
 xlabel('$$\lambda_1$$','interpreter','latex','fontsize',FS)
 ylabel('$$\lambda_2$$','interpreter','latex','fontsize',FS)
 set(gca,'fontsize',FS)
-legend({'Algorithm 2, w/o step 7\qquad','Algorithm 2'},'interpreter','latex','location','southeast')
+legend({'Algorithm 2','Algorithm 2, w/o step 6\qquad'},'interpreter','latex','location','southeast')
 title('NDSDP Path-Following, trajectory of the dual variables')
 
 if save
