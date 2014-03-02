@@ -13,6 +13,7 @@ function [ W, G, IG ] = computeWandG( X, Z )
     try
         R = chol(Z,'lower');
     catch
+        display('WARNING: --------------------------')
         display('Cholesky factorization of Z failed')
         display('Eig of Z')
         min(eig(Z))

@@ -1,4 +1,5 @@
 function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_tau, iter ] = NTSolve(Q, C, lambda, A, a, tau, tol, X, Z , mu, Participation, display)
+
 % Solve the NT system up to tolerance tol
 
     %Some dimensions
@@ -23,24 +24,6 @@ function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_ta
         dX  = smat(NTstep(Nconst+1:Nconst+n));
         dZ  = smat(NTstep(Nconst+n+1:end));
 
-        % Compute update back-tracking style
-%         alpha = 1;
-% 
-%         tolcond = min([eig(X);
-%                        eig(Z)]);
-% 
-%         cond = min([eig(X + alpha*dX);
-%                     eig(Z + alpha*dZ)]);
-% 
-%         while (cond < 0.9*tolcond) 
-%             alpha = 0.9*alpha;
-%             cond = min([eig(X + alpha*dX);
-%                         eig(Z + alpha*dZ)]);
-%             if (alpha < 1e-6)
-%                 alpha
-%             end
-%         end
-%         alphaX = alpha;alphaZ = alpha;
         
         alphaX = alphaPos( X, dX );
         alphaZ = alphaPos( Z, dZ );
@@ -77,6 +60,7 @@ function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_ta
 
     end
 
+    
     PosCheck( X, Z );
     
     %Compute Gradient of X w.r.t lambda
@@ -115,6 +99,7 @@ function [ X, Z, mu, X_sens, X_sens_tau, Z_sens, Z_sens_tau, mu_sens, mu_sens_ta
         plot(Record.alpha,'linestyle','none','marker','.')
         title('Step-size');grid on
     end
+    
 
 end
 
