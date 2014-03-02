@@ -321,7 +321,7 @@ title('NDSDP Path-Following, barrier and dual residual','fontsize',FS)
 set(gca,'fontsize',FS);
 
 if save
-    PapPos = get(gcf,'PaperPosition');%PapPos(4) = 1.5*PapPos(4);
+    PapPos = get(gcf,'PaperPosition');PapPos(3) = 1.25*PapPos(3);
     set(gcf,'PaperPosition',PapPos)
 
     FileName = ['/Users/sebastien/Desktop/OPTICON/Publications/CDC2014/GP/SDP_Decomposition/Figures/PathFollowing_tau_and_res',label];
